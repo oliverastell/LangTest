@@ -1,3 +1,3 @@
 # LangTest
 
-just testing something out
+Write your code into test.tl, then run the main.py function.
