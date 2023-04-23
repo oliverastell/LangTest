@@ -1,3 +1,10 @@
 
 print "Hello! " + "My name is Tom.";
 
+let hello = "Hi";
+
+{
+    let hi = "yo";
+};
+
+print hello;

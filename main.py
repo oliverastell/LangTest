@@ -1,3 +1,4 @@
+import colorama
 import src.libs.longinput as longinput
 from src.lexer import Tokenizer
 from src.parse import Parser
@@ -18,12 +19,13 @@ def main():
 
         tree = parser.parse()
 
+        print('')
         interpreter = Interpreter(tree)
         interpreter.interpret('stdin')
 
-        print("\nGLOBAL_MEMORY:")
-        for k, v in sorted(interpreter.GLOBAL_MEMORY.items()):
-            print(f"{k} = {v}")
+        print(f"\n{colorama.Fore.YELLOW}GLOBAL MEMORY:")
+        for k, v in sorted(interpreter.global_scope.table.items()):
+            print(f"{colorama.Fore.CYAN}{k}{colorama.Fore.WHITE} = {v}")
 
 if __name__ == "__main__":
     main()

@@ -24,7 +24,9 @@ class NodeVisitor(object):
 class Interpreter(NodeVisitor):
     def __init__(self, tree) -> None:
         self.tree = tree
-        self.GLOBAL_MEMORY = {}
+
+    def get_vartable(self):
+        return self.scope_list[-1]
 
     def operate(self, op: str, x, y = None):
         if y != None:
@@ -58,9 +60,29 @@ class Interpreter(NodeVisitor):
             elif op == "MINUS":
                 if hasattr(x, "op_NEG"):
                     return getattr(x, "op_NEG")()
+                
+    class VarTable:
+        def __init__(self, scope) -> None:
+            self.table = {}
+            self.scope = scope
+        
+        def get(self, interpreter, var):
+            val = self.table.get(var)
+            if val == None:
+                return interpreter.scope_list[0].table.get(var)
+            else: return val
+
+        def assign(self, var, value):
+            self.table[var] = value
+
+        def reassign(self, interpreter, var, op, value):
+            if self.get(interpreter, var) != None:
+                self.table[var] = self.operate(op, self.table[var], value)
+            else:
+                self.error(self.error(f"Invalid Variable: {var}"))
 
     def error(self, reason):
-        print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error{colorama.Style.RESET_ALL}\n {colorama.Fore.CYAN}<{self.parser.filename}> {colorama.Style.RESET_ALL}\n{reason}\n")
+        print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error{colorama.Style.RESET_ALL}{colorama.Fore.CYAN}{colorama.Style.RESET_ALL}\n{reason}\n")
         exit()
 
     def visit_BinOp(self, node):
@@ -70,12 +92,18 @@ class Interpreter(NodeVisitor):
         return self.operate(node.op.type, self.visit(node.expr))
 
     def visit_Scope(self, node):
+        self.scope_list.append(self.VarTable(node))
         for statement in node.statements:
             val = Nil()
             if type(statement).__name__ == "Return":
                 val = self.visit(statement.token)
                 break
             self.visit(statement)
+        if len(self.scope_list) > 1:
+            self.scope_list.pop()
+        else:
+            self.global_scope = self.scope_list[0]
+            del self.scope_list
         return val
 
     def visit_If(self, node):
@@ -88,17 +116,15 @@ class Interpreter(NodeVisitor):
 
     def visit_Reassign(self, node):
         var_name = node.left.value
+        value = self.visit(node.right)
         op = node.op.type
-        if var_name not in self.GLOBAL_MEMORY:
-            self.error(f"Invalid Variable: {var_name}")
-        value = self.operate(op, self.GLOBAL_MEMORY[var_name], self.visit(node.right))
-        self.GLOBAL_MEMORY[var_name] = value
+        self.get_vartable().reassign(self, op, var_name, value)
         return value
 
     def visit_Assign(self, node):
         var_name = node.left.value
         value = self.visit(node.right)
-        self.GLOBAL_MEMORY[var_name] = value
+        self.get_vartable().assign(var_name, value)
         return value
 
     def visit_Nil(self, _):
@@ -106,11 +132,11 @@ class Interpreter(NodeVisitor):
 
     def visit_Var(self, node):
         var_name = node.value
-        val = self.GLOBAL_MEMORY.get(var_name)
-        if val is None:
-            self.error(f"Invalid Variable: {var_name}")
+        value = self.get_vartable().get(self, var_name)
+        if value != None:
+            return value
         else:
-            return val
+            self.error(f"Invalid Variable: {var_name}")
 
     def visit_String(self, node):
         return node
@@ -126,5 +152,6 @@ class Interpreter(NodeVisitor):
         if tree is None:
             return ''
 
+        self.scope_list = []
         return self.visit(tree)
     
