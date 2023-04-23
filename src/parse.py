@@ -52,6 +52,9 @@ class Parser:
         elif token.type in ("TRUE", "FALSE"):
             self.next()
             node = Bool(token)
+        elif token.type == "NIL":
+            self.next()
+            node = Nil(token.oindex)
         elif token.type == "NUMBER":
             self.next()
             node = Num(token)
@@ -154,12 +157,13 @@ class Parser:
         return node
 
     def assignment_statement(self):
+        type = self.tok
         self.next("ID")
         left = self.variable()
         token = self.tok
         self.next()
         right = self.statement()
-        node = Assign(left, token, right)
+        node = Assign(left, token, right, type.type)
         return node
 
     def if_statement(self):
@@ -181,7 +185,7 @@ class Parser:
     def statement(self):
         if self.tok.type == "LCURLY":
             node = self.scope()
-        elif self.tok.type == "LET":
+        elif self.tok.type in ("PUB", "LET"):
             node = self.assignment_statement()
         elif self.tok.type == "ID":
             node = self.reassignment_statement()
@@ -191,8 +195,6 @@ class Parser:
             node = self.print_statement()
         elif self.tok.type == "RCURLY":
             node = self.empty(self.tok.oindex + 1)
-        # elif self.tok.type == "FN":
-        #     node = self.function_definition()
         elif self.tok.type == "IF":
             node = self.if_statement()
         else:

@@ -1,4 +1,4 @@
-from src.parse import Nil, underline_char, colorama, Bool
+from src.parse import Nil, underline_char, colorama, Bool, Token
 
 ##########################################
 ##                                      ##
@@ -21,6 +21,26 @@ class NodeVisitor(object):
 ##                                      ##
 ##########################################
 
+class VarTable:
+        def __init__(self, scope) -> None:
+            self.table = {}
+            self.scope = scope
+        
+        def get(self, interpreter, var):
+            val = self.table.get(var)
+            if val == None:
+                return interpreter.scope_list[0].table.get(var)
+            else: return val
+
+        def assign(self, var, value):
+            self.table[var] = value
+
+        def reassign(self, interpreter, var, op, value):
+            if self.get(interpreter, var) != None:
+                self.table[var] = self.operate(op, self.table[var], value)
+            else:
+                interpreter.error(f"Invalid Variable: {var}")
+
 class Interpreter(NodeVisitor):
     def __init__(self, tree) -> None:
         self.tree = tree
@@ -34,7 +54,7 @@ class Interpreter(NodeVisitor):
             if hasattr(x, "op_" + op):
                 return getattr(x, "op_" + op)(y)
             elif op == "EQUALS":
-                return y
+                return Bool(y) 
             elif op == "EQUALSE":
                 return x == y
             elif op == "BANGE":
@@ -60,26 +80,6 @@ class Interpreter(NodeVisitor):
             elif op == "MINUS":
                 if hasattr(x, "op_NEG"):
                     return getattr(x, "op_NEG")()
-                
-    class VarTable:
-        def __init__(self, scope) -> None:
-            self.table = {}
-            self.scope = scope
-        
-        def get(self, interpreter, var):
-            val = self.table.get(var)
-            if val == None:
-                return interpreter.scope_list[0].table.get(var)
-            else: return val
-
-        def assign(self, var, value):
-            self.table[var] = value
-
-        def reassign(self, interpreter, var, op, value):
-            if self.get(interpreter, var) != None:
-                self.table[var] = self.operate(op, self.table[var], value)
-            else:
-                self.error(self.error(f"Invalid Variable: {var}"))
 
     def error(self, reason):
         print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error{colorama.Style.RESET_ALL}{colorama.Fore.CYAN}{colorama.Style.RESET_ALL}\n{reason}\n")
@@ -92,7 +92,7 @@ class Interpreter(NodeVisitor):
         return self.operate(node.op.type, self.visit(node.expr))
 
     def visit_Scope(self, node):
-        self.scope_list.append(self.VarTable(node))
+        self.scope_list.append(VarTable(node))
         for statement in node.statements:
             val = Nil()
             if type(statement).__name__ == "Return":
@@ -107,7 +107,8 @@ class Interpreter(NodeVisitor):
         return val
 
     def visit_If(self, node):
-        if self.visit(node.condition).bool():
+        val = self.visit(node.condition)
+        if val.bool():
             self.visit(node.result)
 
     def visit_Print(self, node):
@@ -124,7 +125,10 @@ class Interpreter(NodeVisitor):
     def visit_Assign(self, node):
         var_name = node.left.value
         value = self.visit(node.right)
-        self.get_vartable().assign(var_name, value)
+        if node.assignment_type == "LET":
+            self.get_vartable().assign(var_name, value)
+        elif node.assignment_type == "PUB":
+            self.scope_list[0].assign(var_name, value)
         return value
 
     def visit_Nil(self, _):

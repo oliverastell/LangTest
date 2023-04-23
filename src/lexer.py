@@ -34,8 +34,10 @@ DO_OPS = '/'
 RESERVED = {
     "true": ("TRUE", True),
     "false": ("FALSE", False),
+    "nil": "NIL",
     "print": "PRINT",
     "let": "LET",
+    "pub": "PUB",
     "return": "RETURN",
     "fn": "FUNCTION",
     "if": "IF",

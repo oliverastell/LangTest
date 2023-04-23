@@ -3,6 +3,37 @@ from src.lexer import Token
 class AST:
     ...
 
+class Value(AST):
+    def op_EQUALS(self, other):
+        val = other.value
+        return Num(Token(other.token.type, val, other.token.oindex))
+    def op_EQUALSE(self, other):
+        val = self.value == other.value
+        return Bool(Token("BOOL", val, self.token.oindex))
+    def op_BANGE(self, other):
+        val = self.value != other.value
+        return Num(Token("BOOL", val, self.token.oindex))
+    def op_LESSER(self, other):
+        val = self.value < other.value
+        return Num(Token("BOOL", val, self.token.oindex))
+    def op_LESSERE(self, other):
+        val = self.value <= other.value
+        return Num(Token("BOOL", val, self.token.oindex))
+    def op_GREATER(self, other):
+        val = self.value > other.value
+        return Num(Token("BOOL", val, self.token.oindex))
+    def op_GREATERE(self, other):
+        val = self.value >= other.value
+        return Num(Token("BOOL", val, self.token.oindex))
+    def op_OR(self, other):
+        val = self.bool() or other.bool()
+        return Num(Token("BOOL", val, self.token.oindex))
+    def op_AND(self, other):
+        val = self.bool() and other.bool()
+        return Num(Token("BOOL", val, self.token.oindex))
+    def bool(self):
+        return True
+
 class Scope(AST):
     def __init__(self, statements: list = None) -> None:
         if statements == None: statements = []
@@ -37,13 +68,14 @@ class Return(AST):
         return f"Return({self.token})"
 
 class Assign(AST):
-    def __init__(self, left, op, right) -> None:
+    def __init__(self, left, op, right, assignment_type) -> None:
         self.left = left
         self.token = self.op = op
         self.right = right
+        self.assignment_type = assignment_type
     
     def __repr__(self) -> str:
-        return f"Assign({self.left}, {self.op}, {self.right})"
+        return f"Assign({self.left}, {self.op}, {self.right}, {self.assignment_type})"
 
 class Reassign(AST):
     def __init__(self, left, op, right) -> None:
@@ -62,7 +94,7 @@ class Var(AST):
     def __repr__(self) -> str:
         return f"Var({self.token})"
 
-class String(AST):
+class String(Value):
     def __init__(self, token) -> None:
         self.token = token
         self.value = token.value
@@ -80,7 +112,7 @@ class String(AST):
     def __repr__(self) -> str:
         return f"String({self.token})"
 
-class Bool(AST):
+class Bool(Value):
     def __init__(self, token) -> None:
         self.token = token
         self.value = token.value
@@ -95,7 +127,7 @@ class Bool(AST):
     def __repr__(self) -> str:
         return f"Bool({self.token})"
 
-class Num(AST):
+class Num(Value):
     def __init__(self, token) -> None:
         self.token = token
         self.value = token.value
@@ -146,9 +178,10 @@ class Num(AST):
     def __repr__(self) -> str:
         return f"Num({self.token})"
 
-class Nil(AST):
+class Nil(Value):
     def __init__(self, oindex: int = 0) -> None:
-        self.value = Token("NIL", None, oindex)
+        self.token = Token("NIL", None, oindex)
+        self.value = None
 
     def repr(self) -> str:
         return "nil"
@@ -157,7 +190,7 @@ class Nil(AST):
         return False
     
     def __repr__(self) -> str:
-        return f"Nil({self.value.oindex})"
+        return f"Nil({self.token.oindex})"
 
 class UnaryOp(AST):
     def __init__(self, op, expr) -> None:

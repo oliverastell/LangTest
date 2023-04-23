@@ -26,6 +26,7 @@ def main():
         print(f"\n{colorama.Fore.YELLOW}GLOBAL MEMORY:")
         for k, v in sorted(interpreter.global_scope.table.items()):
             print(f"{colorama.Fore.CYAN}{k}{colorama.Fore.WHITE} = {v}")
+        print()
 
 if __name__ == "__main__":
     main()
