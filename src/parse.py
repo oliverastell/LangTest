@@ -16,9 +16,7 @@ class Scope(AST):
     
     def __repr__(self) -> str:
         statements = []
-        # print("len: " + repr(len(self.statements)))
         for s in self.statements:
-            # print("> " + repr(s))
             statements.append(repr(s))
         return f"Scope({', '.join(statements)})"
 
@@ -70,12 +68,12 @@ class Num(AST):
     def __repr__(self) -> str:
         return str(self.value)
 
-class NoOp(AST):
-    def __init__(self, oindex) -> None:
-        value = Token("NIL", None, oindex)
+class Nil(AST):
+    def __init__(self, oindex: int = 0) -> None:
+        self.value = Token("NIL", None, oindex)
     
     def __repr__(self) -> str:
-        return "NoOp"
+        return "nil"
 
 class UnaryOp(AST):
     def __init__(self, op, expr) -> None:
@@ -112,7 +110,7 @@ class Parser:
 
         arrows = ' '*(len(read_row) - 1) + '^' * len(str(self.tok.value))
 
-        print(f"\n{colorama.Fore.RED}{underline_char}AN ERROR OCCURED{colorama.Style.RESET_ALL}\n {colorama.Fore.CYAN}<{filename}>: Line {line}{colorama.Style.RESET_ALL}\n{full_row}\n{colorama.Fore.YELLOW}{arrows}\n{colorama.Style.RESET_ALL}{reason}\n")
+        print(f"\n{colorama.Fore.RED}{underline_char}Parsing Error{colorama.Style.RESET_ALL}\n {colorama.Fore.CYAN}<{filename}>: Line {line}{colorama.Style.RESET_ALL}\n{full_row}\n{colorama.Fore.YELLOW}{arrows}\n{colorama.Style.RESET_ALL}{reason}\n")
         exit()
 
     def next(self, *match: str):
@@ -128,26 +126,24 @@ class Parser:
             elif len(match) > 1 and self.tok.type not in match:
                 self.error("Expected one of following tokens token: ['" + ', '.join(match) + "']")
 
-    def empty(self):
-        return NoOp()
+    def empty(self, oindex: int = 0):
+        return Nil(oindex)
 
     def factor(self):
         token = self.tok
         if token.type in ("PLUS", "MINUS"):
             self.next()
             node = UnaryOp(token, self.base())
-            return node
         elif token.type == "NUMBER":
             self.next()
-            return Num(token)
+            node = Num(token)
         elif token.type == "LBRACKET":
             self.next()
             node = self.expr()
             self.next()
-            return node
         else:
             node = self.variable()
-            return node
+        return node
 
     def base(self):
         node = self.factor()
@@ -192,15 +188,15 @@ class Parser:
         token = self.tok
         if token.type == "EQUALS":
             self.next()
-            right = self.expr()
+            right = self.statement()
             node = Reassign(left, token, right)
         elif token.type in ("PLUS", "MINUS", "MUL", "DIV", "MOD", "EXP", "DIVDIV"):
             self.next("EQUALS")
             self.next()
-            right = self.expr()
+            right = self.statement()
             node = Reassign(left, token, right)
         else:
-            self.error("Invalid token")
+            node = left
         return node
 
     def assignment_statement(self):
@@ -208,7 +204,7 @@ class Parser:
         left = self.variable()
         token = self.tok
         self.next()
-        right = self.expr()
+        right = self.statement()
         node = Assign(left, token, right)
         return node
 
@@ -219,7 +215,7 @@ class Parser:
 
     def return_statement(self):
         self.next()
-        node = self.expr()
+        node = self.statement()
         return Return(node)
 
     def statement(self):

@@ -1,3 +1,4 @@
+from src.parse import Nil, underline_char, colorama
 
 ##########################################
 ##                                      ##
@@ -43,17 +44,21 @@ class NodeVisitor(object):
         return visitor(node)
     
     def generic_visit(self, node):
-        raise Exception(f'No visit_{type(node).__name__} method')
+        self.error(f'No visit_{type(node).__name__} method')
 
 class Interpreter(NodeVisitor):
     def __init__(self, parser) -> None:
         self.parser = parser
 
+    def error(self, reason):
+        print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error{colorama.Style.RESET_ALL}\n {colorama.Fore.CYAN}<{self.parser.filename}>\n{reason}\n")
+        exit()
+
     def visit_BinOp(self, node):
         return operate(node.op.type, self.visit(node.left), self.visit(node.right))
 
     def visit_UnaryOp(self, node):
-        return operate(node.op.type, self.visit(node.left))
+        return operate(node.op.type, self.visit(node.token))
 
     def visit_Scope(self, node):
         for statement in node.statements:
@@ -66,26 +71,31 @@ class Interpreter(NodeVisitor):
 
     def visit_Print(self, node):
         print(repr_float(self.visit(node.token)))
+        return Nil()
 
     def visit_Reassign(self, node):
         var_name = node.left.value
         op = node.op.type
         if var_name not in self.GLOBAL_SCOPE:
-            raise NameError(repr(var_name))
-        self.GLOBAL_SCOPE[var_name] = operate(op, self.GLOBAL_SCOPE[var_name], self.visit(node.right))
+            self.error(f"Invalid Variable: {var_name}")
+        value = operate(op, self.GLOBAL_SCOPE[var_name], self.visit(node.right))
+        self.GLOBAL_SCOPE[var_name] = value
+        return value
 
     def visit_Assign(self, node):
         var_name = node.left.value
-        self.GLOBAL_SCOPE[var_name] = self.visit(node.right)
+        value = self.visit(node.right)
+        self.GLOBAL_SCOPE[var_name] = value
+        return value
 
-    def visit_NoOp(self, node):
-        pass
+    def visit_Nil(self, node):
+        return Nil()
 
     def visit_Var(self, node):
         var_name = node.value
         val = self.GLOBAL_SCOPE.get(var_name)
         if val is None:
-            raise NameError(repr(var_name))
+            self.error(f"Invalid Variable: {var_name}")
         else:
             return val
 

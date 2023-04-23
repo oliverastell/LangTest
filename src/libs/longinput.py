@@ -1,6 +1,6 @@
-import colorama
+import colorama, os
 
-def file_input():
+def long_input():
     source = ''
 
     entry = input('>')
@@ -23,3 +23,10 @@ def file_input():
         source = entry
     
     return source
+
+def file_input(file: str):
+    file = open(os.path.join('lang', file), "r")
+    source = file.read()
+    file.close()
+    return source
+    
