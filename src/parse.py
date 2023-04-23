@@ -1,96 +1,11 @@
 from src.lexer import Token, Tokenizer, colorama, underline_char
+from src.parse_tokens import *
 
 ##########################################
 ##                                      ##
 ##  Parser                              ##
 ##                                      ##
 ##########################################
-
-class AST:
-    ...
-
-class Scope(AST):
-    def __init__(self, statements: list = None) -> None:
-        if statements == None: statements = []
-        self.statements = statements
-    
-    def __repr__(self) -> str:
-        statements = []
-        for s in self.statements:
-            statements.append(repr(s))
-        return f"Scope({', '.join(statements)})"
-
-class Print(AST):
-    def __init__(self, token) -> None:
-        self.token = token
-    
-    def __repr__(self) -> str:
-        return f"Print({self.token})"
-
-class Return(AST):
-    def __init__(self, token) -> None:
-        self.token = token
-    
-    def __repr__(self) -> str:
-        return f"Return({self.token})"
-
-class Assign(AST):
-    def __init__(self, left, op, right) -> None:
-        self.left = left
-        self.token = self.op = op
-        self.right = right
-    
-    def __repr__(self) -> str:
-        return f"Assign({self.left}, {self.op}, {self.right})"
-
-class Reassign(AST):
-    def __init__(self, left, op, right) -> None:
-        self.left = left
-        self.token = self.op = op
-        self.right = right
-    
-    def __repr__(self) -> str:
-        return f"Reassign({self.left}, {self.op}, {self.right})"
-
-class Var(AST):
-    def __init__(self, token) -> None:
-        self.token = token
-        self.value = token.value
-    
-    def __repr__(self) -> str:
-        return f"Var({self.token})"
-
-class Num(AST):
-    def __init__(self, token) -> None:
-        self.token = token
-        self.value = token.value
-    
-    def __repr__(self) -> str:
-        return str(self.value)
-
-class Nil(AST):
-    def __init__(self, oindex: int = 0) -> None:
-        self.value = Token("NIL", None, oindex)
-    
-    def __repr__(self) -> str:
-        return "nil"
-
-class UnaryOp(AST):
-    def __init__(self, op, expr) -> None:
-        self.token = self.op = op
-        self.expr = expr
-    
-    def __repr__(self) -> str:
-        return f"UnaryOp({self.op}, {self.expr})"
-
-class BinOp(AST):
-    def __init__(self, left, op, right) -> None:
-        self.left = left
-        self.right = right
-        self.op = op
-    
-    def __repr__(self) -> str:
-        return f"BinOp({self.left}, {self.op.value}, {self.right})"
 
 class Parser:
     def __init__(self, tokenizer: Tokenizer) -> None:
@@ -134,12 +49,18 @@ class Parser:
         if token.type in ("PLUS", "MINUS"):
             self.next()
             node = UnaryOp(token, self.base())
+        elif token.type in ("TRUE", "FALSE"):
+            self.next()
+            node = Bool(token)
         elif token.type == "NUMBER":
             self.next()
             node = Num(token)
+        elif token.type == "STRING":
+            self.next()
+            node = String(token)
         elif token.type == "LBRACKET":
             self.next()
-            node = self.expr()
+            node = self.bool_expr()
             self.next()
         else:
             node = self.variable()
@@ -177,6 +98,39 @@ class Parser:
             node = BinOp(node, token, self.term())
         
         return node
+
+    def bool_relation(self):
+        node = self.expr()
+
+        while self.tok.type in ("EQUALSE", "BANGE", "LESSER", "GREATER", "LESSERE", "GREATERE"):
+            token = self.tok
+            self.next()
+
+            node = BinOp(node, token, self.expr())
+        
+        return node
+
+    def bool_and(self):
+        node = self.bool_relation()
+
+        while self.tok.type == "AND":
+            token = self.tok
+            self.next()
+
+            node = BinOp(node, token, self.bool_relation())
+        
+        return node
+    
+    def bool_expr(self):
+        node = self.bool_and()
+
+        while self.tok.type == "OR":
+            token = self.tok
+            self.next()
+
+            node = BinOp(node, token, self.bool_and())
+        
+        return node
     
     def variable(self):
         node = Var(self.tok)
@@ -208,6 +162,12 @@ class Parser:
         node = Assign(left, token, right)
         return node
 
+    def if_statement(self):
+        self.next()
+        condition = self.bool_expr()
+        result = self.scope()
+        return If(condition, result)
+
     def print_statement(self):
         self.next()
         node = self.statement()
@@ -231,20 +191,30 @@ class Parser:
             node = self.print_statement()
         elif self.tok.type == "RCURLY":
             node = self.empty(self.tok.oindex + 1)
+        # elif self.tok.type == "FN":
+        #     node = self.function_definition()
+        elif self.tok.type == "IF":
+            node = self.if_statement()
         else:
-            node = self.expr()
+            node = self.bool_expr()
         return node
 
     def statement_list(self):
+
         node = self.statement()
 
         results = [node]
-
-        while self.tok.type == "SEMI":
-            self.next()
-            if self.tok.type == "RCURLY":
-                break
-            results.append(self.statement())
+        if self.tok.type == "RCURLY":
+            results[-1] = Return(results[-1])
+        elif self.tok.type == "SEMI":
+            while self.tok.type == "SEMI":
+                self.next()
+                if self.tok.type == "RCURLY":
+                    break
+                results.append(self.statement())
+                if self.tok.type == "RCURLY":
+                    results[-1] = Return(results[-1])
+                    break
 
         if self.tok.type == "ID":
             self.error("Expected ;")
@@ -283,3 +253,4 @@ class Parser:
         if self.tok.type != "EOF":
             self.error("Expected end of file")
         return node
+    

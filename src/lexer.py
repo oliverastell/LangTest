@@ -11,6 +11,7 @@ IDENTIFIER = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_' + NUMBER
 WHITESPACE = ' \n\t\r'
 STRING_CAP = '"\''
 ESCAPE_SEQUENCE = '\\'
+COMMENT = '#'
 OPS = {
     '+': "PLUS",
     '-': "MINUS",
@@ -26,15 +27,20 @@ OPS = {
     ')': "RBRACKET",
     '{': "LCURLY",
     '}': "RCURLY",
+    '!': "BANG",
 }
-EQ_OPS = '=<>'
+EQ_OPS = '!=<>'
 DO_OPS = '/'
 RESERVED = {
-    "true": "TRUE",
-    "false": "FALSE",
+    "true": ("TRUE", True),
+    "false": ("FALSE", False),
     "print": "PRINT",
     "let": "LET",
     "return": "RETURN",
+    "fn": "FUNCTION",
+    "if": "IF",
+    "and": "AND",
+    "or": "OR",
 }
 
 underline_char = '\033[1;4m'
@@ -53,7 +59,7 @@ class Token:
 
 class Tokenizer:
     def __init__(self, source: str) -> None:
-        self.source = '{' + source + '}'
+        self.source = '{' + source + '\n}'
     
     def error(self, reason: str = "Failed to tokenize", length: int = 1):
         read = '\n' + self.source[:self.pos + 1]
@@ -106,19 +112,25 @@ class Tokenizer:
             self.next()
         
         if token in RESERVED:
-            return Token(RESERVED[token], token, oindex)
+            if type(RESERVED[token]) == tuple:
+                return Token(RESERVED[token][0], RESERVED[token][1], oindex)
+            else:
+                return Token(RESERVED[token], None, oindex)
+            
         return Token('ID', token, oindex)
 
     def make_op(self):
         token = self.char
         oindex = self.pos
         self.next()
+
         if self.char == '=' and token in EQ_OPS:
             self.next()
             return Token(OPS[token] + 'E', token + '=', oindex)
         elif self.char == token and token in DO_OPS:
             self.next()
             return Token(OPS[token]*2, token + token, oindex)
+
         return Token(OPS[token], token, oindex)
     
     def make_string(self):
@@ -166,6 +178,9 @@ class Tokenizer:
                 tokens.append(self.make_string())
             elif self.char in WHITESPACE:
                 self.next()
+            elif self.char == COMMENT:
+                while self.char not in (None, '\n'):
+                    self.next()
             else:
                 self.error(f"Invalid Character: '{self.char}'")
         
@@ -174,4 +189,4 @@ class Tokenizer:
 
 if __name__ == "__main__":
     import libs.longinput
-    print('\n' + str(Tokenizer(libs.longinput.file_input()).tokenize('stdin')))
+    print('\n' + str(Tokenizer(libs.longinput.long_input()).tokenize('stdin')))
