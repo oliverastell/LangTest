@@ -1,4 +1,4 @@
-import colorama, fileinput
+import colorama
 
 ##########################################
 ##                                      ##
@@ -34,16 +34,10 @@ RESERVED = {
     "false": "FALSE",
     "print": "PRINT",
     "let": "LET",
+    "return": "RETURN",
 }
 
 underline_char = '\033[1;4m'
-
-def repr_float(x):
-    if type(x) == float:
-        if x.is_integer(): return str(int(x))
-        else: return str(float(x))
-    else:
-        return x
 
 class Token:
     def __init__(self, type: str, value, oindex) -> None:
@@ -175,7 +169,9 @@ class Tokenizer:
             else:
                 self.error(f"Invalid Character: '{self.char}'")
         
+        tokens.append(Token("EOF", None, len(self.source)))
         return tokens
 
 if __name__ == "__main__":
-    print('\n' + str(Tokenizer(fileinput.file_input()).tokenize('stdin')))
+    import libs.longinput
+    print('\n' + str(Tokenizer(libs.longinput.file_input()).tokenize('stdin')))

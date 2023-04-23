@@ -29,6 +29,12 @@ def operate(op: str, x, y: None):
         elif op == "MINUS":
             return -x
 
+def repr_float(x):
+    if type(x) == float:
+        if x.is_integer(): return str(int(x))
+        else: return str(float(x))
+    else:
+        return repr(x)
 
 class NodeVisitor(object):
     def visit(self, node):
@@ -51,7 +57,15 @@ class Interpreter(NodeVisitor):
 
     def visit_Scope(self, node):
         for statement in node.statements:
-            self.visit(statement)
+            if type(statement).__name__ == "Return":
+                val = statement.token
+                break
+                
+            val = self.visit(statement)
+        return val
+
+    def visit_Print(self, node):
+        print(repr_float(self.visit(node.token)))
 
     def visit_Reassign(self, node):
         var_name = node.left.value

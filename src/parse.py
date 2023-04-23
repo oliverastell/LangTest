@@ -10,14 +10,31 @@ class AST:
     ...
 
 class Scope(AST):
-    def __init__(self, statements: list = []) -> None:
+    def __init__(self, statements: list = None) -> None:
+        if statements == None: statements = []
         self.statements = statements
     
     def __repr__(self) -> str:
         statements = []
+        # print("len: " + repr(len(self.statements)))
         for s in self.statements:
-            statements.append(str(s))
+            # print("> " + repr(s))
+            statements.append(repr(s))
         return f"Scope({', '.join(statements)})"
+
+class Print(AST):
+    def __init__(self, token) -> None:
+        self.token = token
+    
+    def __repr__(self) -> str:
+        return f"Print({self.token})"
+
+class Return(AST):
+    def __init__(self, token) -> None:
+        self.token = token
+    
+    def __repr__(self) -> str:
+        return f"Return({self.token})"
 
 class Assign(AST):
     def __init__(self, left, op, right) -> None:
@@ -33,6 +50,9 @@ class Reassign(AST):
         self.left = left
         self.token = self.op = op
         self.right = right
+    
+    def __repr__(self) -> str:
+        return f"Reassign({self.left}, {self.op}, {self.right})"
 
 class Var(AST):
     def __init__(self, token) -> None:
@@ -51,6 +71,9 @@ class Num(AST):
         return str(self.value)
 
 class NoOp(AST):
+    def __init__(self, oindex) -> None:
+        value = Token("NIL", None, oindex)
+    
     def __repr__(self) -> str:
         return "NoOp"
 
@@ -95,13 +118,14 @@ class Parser:
     def next(self, *match: str):
         self.pos += 1
         if self.pos >= len(self.source):
-            self.tok = Token('EOF', None, len(self.source))
+            self.error("Expected <EOF>")
         else:
             self.tok = self.source[self.pos]
-        if match != () and self.tok.type == match:
-            if self.top.type == match:
-                self.error("Expected token: " + match)
-            elif self.tok.type in match:
+
+        if match != ():
+            if len(match) == 1 and self.tok.type != match[0]:
+                self.error("Expected token: " + match[0])
+            elif len(match) > 1 and self.tok.type not in match:
                 self.error("Expected one of following tokens token: ['" + ', '.join(match) + "']")
 
     def empty(self):
@@ -123,7 +147,7 @@ class Parser:
             return node
         else:
             node = self.variable()
-            return self
+            return node
 
     def base(self):
         node = self.factor()
@@ -160,22 +184,23 @@ class Parser:
     
     def variable(self):
         node = Var(self.tok)
-        self.next("ID")
+        self.next()
         return node
 
     def reassignment_statement(self):
         left = self.variable()
         token = self.tok
-        if self.tok.type == "EQUALS":
+        if token.type == "EQUALS":
+            self.next()
             right = self.expr()
             node = Reassign(left, token, right)
-        elif self.tok.type in ("PLUS", "MINUS", "MUL", "DIV", "MOD", "EXP", "DIVDIV"):
+        elif token.type in ("PLUS", "MINUS", "MUL", "DIV", "MOD", "EXP", "DIVDIV"):
             self.next("EQUALS")
             self.next()
             right = self.expr()
             node = Reassign(left, token, right)
         else:
-            self.error("Invalid assignment")
+            self.error("Invalid token")
         return node
 
     def assignment_statement(self):
@@ -187,6 +212,16 @@ class Parser:
         node = Assign(left, token, right)
         return node
 
+    def print_statement(self):
+        self.next()
+        node = self.statement()
+        return Print(node)
+
+    def return_statement(self):
+        self.next()
+        node = self.expr()
+        return Return(node)
+
     def statement(self):
         if self.tok.type == "LCURLY":
             node = self.scope()
@@ -194,8 +229,14 @@ class Parser:
             node = self.assignment_statement()
         elif self.tok.type == "ID":
             node = self.reassignment_statement()
+        elif self.tok.type == "RETURN":
+            node = self.return_statement()
+        elif self.tok.type == "PRINT":
+            node = self.print_statement()
+        elif self.tok.type == "RCURLY":
+            node = self.empty(self.tok.oindex + 1)
         else:
-            node = self.empty()
+            node = self.expr()
         return node
 
     def statement_list(self):
@@ -204,7 +245,9 @@ class Parser:
         results = [node]
 
         while self.tok.type == "SEMI":
-            self.next("SEMI")
+            self.next()
+            if self.tok.type == "RCURLY":
+                break
             results.append(self.statement())
 
         if self.tok.type == "ID":
@@ -213,26 +256,30 @@ class Parser:
         return results
 
     def scope(self):
-        self.next("LCURLY")
-        nodes = self.statement_list()
-        self.next("RCURLY")
+        if self.tok.type == "LCURLY":
+            self.next()
+            nodes = self.statement_list()
+            if self.tok.type == "RCURLY":
+                root = Scope()
 
-        root = Scope()
-        for node in nodes:
-            root.statements.append(node)
+                for node in nodes:
+                    root.statements.append(node)
 
-        return root
+                self.next()
+                return root
+            else:
+                self.error("Expected }")
+        else:
+            self.error("Expected {")
 
     def program(self):
         node = self.scope()
-        self.next()
         return node
 
     def parse(self, filename: str | tuple | list = ''):
         self.source = self.tokenizer.tokenize(filename)
         
         self.filename = filename
-
         self.pos = -1
         self.next()
 
