@@ -6,8 +6,8 @@ import colorama, fileinput
 ##                                      ##
 ##########################################
 
-NUMBER = '0123456789_.'
-IDENTIFIER = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' + NUMBER
+NUMBER = '0123456789.'
+IDENTIFIER = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_' + NUMBER
 WHITESPACE = ' \n\t\r'
 STRING_CAP = '"\''
 ESCAPE_SEQUENCE = '\\'
@@ -24,12 +24,16 @@ OPS = {
     ';': "SEMI",
     '(': "LBRACKET",
     ')': "RBRACKET",
+    '{': "LCURLY",
+    '}': "RCURLY",
 }
 EQ_OPS = '=<>'
 DO_OPS = '/'
 RESERVED = {
     "true": "TRUE",
     "false": "FALSE",
+    "print": "PRINT",
+    "let": "LET",
 }
 
 underline_char = '\033[1;4m'
@@ -46,10 +50,6 @@ class Token:
         self.type = type
         self.value = value
         self.oindex = oindex
-
-    def matches(self, other: 'Token') -> bool:
-        if (self.type == other.type) and (self.value == other.value):
-            return True
     
     def __repr__(self) -> str:
         no_newlines = str(self.value).replace('\n', colorama.Fore.YELLOW + '\\n' + colorama.Style.RESET_ALL)
@@ -59,7 +59,7 @@ class Token:
 
 class Tokenizer:
     def __init__(self, source: str) -> None:
-        self.source = source
+        self.source = '{' + source + '}'
     
     def error(self, reason: str = "Failed to tokenize", length: int = 1):
         read = '\n' + self.source[:self.pos + 1]
@@ -91,6 +91,8 @@ class Tokenizer:
         periods = 0
 
         while self.char != None and self.char in NUMBER:
+            if self.char == '_':
+                continue
             token += self.char
 
             if self.char == '.':
@@ -111,7 +113,7 @@ class Tokenizer:
         
         if token in RESERVED:
             return Token(RESERVED[token], token, oindex)
-        return Token('IDENTIFIER', token, oindex)
+        return Token('ID', token, oindex)
 
     def make_op(self):
         token = self.char

@@ -10,4 +10,4 @@ if __name__ == "__main__":
         interpreter = Interpreter(parser)
         result = interpreter.interpret('stdin')
 
-        print(str(result))
+        print(interpreter.GLOBAL_SCOPE)
