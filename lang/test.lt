@@ -1,7 +1,22 @@
 
+#let test = {
+#    !fn(x, y) {
+#        print x + " " + y;
+#        return x + " " + y;
+#    }
+#    ("yo", "wassup") + "ok"
+#};
 
-fn test(eeae) {
-    print eeae;
-};
+#print test;
 
-test(4);
+#print test;
+
+#test("Bing", "Chilling") + 1
+
+(fn(x, y) {
+   print x + " " + y;
+})("hi", "hello");
+
+!fn(x, y) {
+    print x + " " + y;
+}("hi", "hello");

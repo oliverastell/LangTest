@@ -1,5 +1,5 @@
 from src.parse import Nil, underline_char, colorama, Bool, Token
-from src.parse_tokens import *
+from src.parsetokens import *
 
 ##########################################
 ##                                      ##
@@ -21,26 +21,6 @@ class NodeVisitor(object):
 ##  Interpreter                         ##
 ##                                      ##
 ##########################################
-
-# class VarTable:
-#         def __init__(self, scope) -> None:
-#             self.table = {}
-#             self.scope = scope
-        
-#         def get(self, interpreter, var):
-#             val = self.table.get(var)
-#             if val == None:
-#                 return interpreter.scope_list[0].table.get(var)
-#             else: return val
-
-#         def assign(self, var, value):
-#             self.table[var] = value
-
-#         def reassign(self, interpreter, var, op, value):
-#             if self.get(interpreter, var) != None:
-#                 self.table[var] = self.operate(op, self.table[var], value)
-#             else:
-#                 interpreter.error(f"Invalid Variable: {var}")
 
 class Interpreter(NodeVisitor):
     def __init__(self, tree) -> None:
@@ -78,7 +58,7 @@ class Interpreter(NodeVisitor):
             elif op == "AND":
                 return x and y
             else:
-                self.error(f"Invalid operation {x} {op} {y}")
+                self.error(f"Invalid operation {type(x).__name__} {op} {type(y).__name__}")
         else:
             if op == "PLUS":
                 if hasattr(x, "op_POS"):
@@ -86,13 +66,18 @@ class Interpreter(NodeVisitor):
             elif op == "MINUS":
                 if hasattr(x, "op_NEG"):
                     return getattr(x, "op_NEG")()
+            elif op == "NOT":
+                if hasattr(x, "op_NOT"):
+                    return getattr(x, "op_NOT")()
+            else:
+                self.error(f"Invalid operation {op} {type(x).__name__}")
 
-    def error(self, reason):
+    def error(self, reason, oindex = None):
         print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error{colorama.Style.RESET_ALL}{colorama.Fore.CYAN}{colorama.Style.RESET_ALL}\n{reason}\n")
         exit()
 
     def visit_Call(self, node):
-        parameters, scope = self.visit(node.token).call()
+        parameters, scope = self.visit(node.left).call()
 
         variables = {}
 

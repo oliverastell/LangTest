@@ -44,6 +44,7 @@ RESERVED = {
     "if": "IF",
     "and": "AND",
     "or": "OR",
+    "not": "NOT",
 }
 
 underline_char = '\033[1;4m'
@@ -58,7 +59,7 @@ class Token:
         no_newlines = str(self.value).replace('\n', colorama.Fore.YELLOW + '\\n' + colorama.Style.RESET_ALL)
         if type(self.value) == str:
             no_newlines = '"' + no_newlines + '"'
-        return f"Token({self.type}, {no_newlines})"
+        return f"Token(\"{self.type}\", {no_newlines})"
 
 class Tokenizer:
     def __init__(self, source: str) -> None:

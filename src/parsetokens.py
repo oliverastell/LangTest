@@ -7,31 +7,34 @@ class AST:
 class Value(AST):
     def op_EQUALS(self, other):
         val = other.value
-        return Num(Token(other.token.type, val, other.token.oindex))
+        return val
     def op_EQUALSE(self, other):
         val = self.value == other.value
         return Bool(Token("BOOL", val, self.token.oindex))
     def op_BANGE(self, other):
         val = self.value != other.value
-        return Num(Token("BOOL", val, self.token.oindex))
+        return Bool(Token("BOOL", val, self.token.oindex))
     def op_LESSER(self, other):
         val = self.value < other.value
-        return Num(Token("BOOL", val, self.token.oindex))
+        return Bool(Token("BOOL", val, self.token.oindex))
     def op_LESSERE(self, other):
         val = self.value <= other.value
-        return Num(Token("BOOL", val, self.token.oindex))
+        return Bool(Token("BOOL", val, self.token.oindex))
     def op_GREATER(self, other):
         val = self.value > other.value
-        return Num(Token("BOOL", val, self.token.oindex))
+        return Bool(Token("BOOL", val, self.token.oindex))
     def op_GREATERE(self, other):
         val = self.value >= other.value
-        return Num(Token("BOOL", val, self.token.oindex))
+        return Bool(Token("BOOL", val, self.token.oindex))
     def op_OR(self, other):
         val = self.bool() or other.bool()
-        return Num(Token("BOOL", val, self.token.oindex))
+        return Bool(Token("BOOL", val, self.token.oindex))
     def op_AND(self, other):
         val = self.bool() and other.bool()
-        return Num(Token("BOOL", val, self.token.oindex))
+        return Bool(Token("BOOL", val, self.token.oindex))
+    def op_NOT(self):
+        val = not self.bool()
+        return Bool(Token("BOOL", val, self.token.oindex))
     def string(self):
         return repr(self)
     def bool(self):
@@ -124,13 +127,12 @@ class Var(AST):
         return f"Var({self.token})"
 
 class Call(AST):
-    def __init__(self, token, parameters) -> None:
-        self.token = token
-        self.value = token.value
+    def __init__(self, left, parameters) -> None:
+        self.left = left
         self.parameters = parameters
 
     def __repr__(self) -> str:
-        return f"Call({self.token}, {self.parameters})"
+        return f"Call({self.parameters}, {self.left})"
 
 class Parameters(AST):
     def __init__(self, identifiers: list = None) -> None:

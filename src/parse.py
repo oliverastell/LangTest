@@ -1,5 +1,5 @@
 from src.lexer import Token, Tokenizer, colorama, underline_char
-from src.parse_tokens import *
+from src.parsetokens import *
 
 ##########################################
 ##                                      ##
@@ -44,8 +44,15 @@ class Parser:
     def empty(self, oindex: int = 0):
         return Nil(oindex)
 
+    def call(self, node):
+        if self.tok.type == "LBRACKET":
+            parameters = self.make_tuple()
+            node = Call(node, parameters)
+        return node
+
     def factor(self):
         token = self.tok
+        print("token:", token)
         if token.type in ("PLUS", "MINUS"):
             self.next()
             node = UnaryOp(token, self.base())
@@ -54,6 +61,8 @@ class Parser:
             node = Bool(token)
         elif token.type == "ID":
             node = self.variable()
+        elif token.type == "FUNCTION":
+            node = self.func_statement(False, True)
         elif token.type == "NIL":
             self.next()
             node = Nil(token.oindex)
@@ -69,17 +78,15 @@ class Parser:
                 return Nil(self.tok.oindex)
             else:
                 node = self.bool_expr()
+                if self.tok.type != "RBRACKET":
+                    self.error("Unclosed Bracket")
                 self.next()
-        elif token.type == "RCURLY":
-            self.next()
+        elif token.type == "LCURLY":
             node = self.scope()
         else:
             node = self.variable()
 
-        if self.tok.type == "LBRACKET":
-            parameters = self.make_tuple()
-            return Call(node, parameters)
-        return node
+        return self.call(node)
 
     def base(self):
         node = self.factor()
@@ -125,14 +132,28 @@ class Parser:
         
         return node
 
+    def bool_not(self):
+        if self.tok.type == "NOT":
+            node = UnaryOp(self.tok, None)
+            original = node
+            self.next()
+            while self.tok.type == "NOT":
+                node = UnaryOp(self.tok, node)
+                self.next()
+            original.expr = self.bool_relation()
+        else:
+            node = self.bool_relation()
+        
+        return node
+
     def bool_and(self):
-        node = self.bool_relation()
+        node = self.bool_not()
 
         while self.tok.type == "AND":
             token = self.tok
             self.next()
 
-            node = BinOp(node, token, self.bool_relation())
+            node = BinOp(node, token, self.bool_not())
         
         return node
     
@@ -181,8 +202,9 @@ class Parser:
             if type(left) != Var:
                 self.error("Cannot asign to non-variable type")
             self.next()
-            right = self.statement()
+            right = self.bool_expr()
             node = Reassign(left, token, right)
+            return
         elif token.type in ("PLUS", "MINUS", "MUL", "DIV", "MOD", "EXP", "DIVDIV"):
             self.next("EQUALS")
             self.next()
@@ -196,18 +218,30 @@ class Parser:
         self.next("ID")
         left = self.variable()
         self.next()
-        right = self.statement()
+        right = self.bool_expr()
         node = Assign(left, right, public)
         return node
     
-    def func_statement(self, public = False):
-        self.next("ID")
-        left = self.tok
-        self.next("LBRACKET")
-        parameters = self.make_tuple(True)
-        right = self.scope()
-        node = Assign(left, Function(parameters, right), public)
-        return node
+    def func_statement(self, public = False, statement = True):
+        self.next("ID", "LBRACKET")
+        if self.tok.type == "ID":
+            if statement:
+                left = self.tok
+                self.next("LBRACKET")
+                parameters = self.make_tuple(True)
+                right = self.scope()
+                node = Assign(left, Function(parameters, right), public)
+                return node
+            else:
+                self.error("Cannot define function here")
+        elif self.tok.type == "LBRACKET":
+            if public:
+                self.error("Cannot make an anonymous function public")
+            else:
+                parameters = self.make_tuple(True)
+                right = self.scope()
+                node = Function(parameters, right)
+                return node
         
     def public_statement(self):
         self.next('FUNCTION', 'LET')
@@ -233,12 +267,15 @@ class Parser:
         return Return(node)
 
     def statement(self):
-        if self.tok.type == "LCURLY":
+        if self.tok.type == "BANG":
+            self.next()
+            node = self.bool_expr()
+        elif self.tok.type == "LCURLY":
             node = self.scope()
         elif self.tok.type == "LET":
             node = self.assignment_statement()
         elif self.tok.type == "FUNCTION":
-            node = self.func_statement()
+            node = self.func_statement(False, True)
         elif self.tok.type == "PUB":
             node = self.public_statement()
         elif self.tok.type == "ID":
