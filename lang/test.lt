@@ -1,0 +1,7 @@
+
+
+fn test(eeae) {
+    print eeae;
+};
+
+test(4);

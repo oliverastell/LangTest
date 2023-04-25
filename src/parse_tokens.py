@@ -1,3 +1,4 @@
+from copy import deepcopy
 from src.lexer import Token
 
 class AST:
@@ -31,19 +32,48 @@ class Value(AST):
     def op_AND(self, other):
         val = self.bool() and other.bool()
         return Num(Token("BOOL", val, self.token.oindex))
+    def string(self):
+        return repr(self)
     def bool(self):
         return True
+    def call(self):
+        return Nil()
 
 class Scope(AST):
-    def __init__(self, statements: list = None) -> None:
+    def __init__(self, parent, shares, statements: list = None, variables: list = None) -> None:
         if statements == None: statements = []
         self.statements = statements
+
+        self.vars = variables
+        self.parent = parent
+        self.shares = shares
     
     def __repr__(self) -> str:
         statements = []
         for s in self.statements:
             statements.append(repr(s))
-        return f"Scope({', '.join(statements)})"
+        return f"Scope(Scope(...), {self.shares}, {', '.join(statements)})"
+    
+    def set_var(self, var, value):
+        self.vars[var] = value
+    
+    def get_var(self, var):
+        return self.vars.get(var)
+    
+    def init_vars(self):
+        if self.vars != None:
+            if self.shares:
+                self.shares = False
+            if self.parent != None:
+                self.vars = self.parent.vars | self.vars
+        else:
+            if self.parent != None:
+                if self.shares:
+                    self.vars = self.parent.vars
+                else:
+                    self.vars = deepcopy(self.parent.vars)
+            else:
+                self.vars = {}
 
 class If(AST):
     def __init__(self, condition, result) -> None:
@@ -68,14 +98,13 @@ class Return(AST):
         return f"Return({self.token})"
 
 class Assign(AST):
-    def __init__(self, left, op, right, assignment_type) -> None:
+    def __init__(self, left, right, public) -> None:
         self.left = left
-        self.token = self.op = op
         self.right = right
-        self.assignment_type = assignment_type
+        self.public = public
     
     def __repr__(self) -> str:
-        return f"Assign({self.left}, {self.op}, {self.right}, {self.assignment_type})"
+        return f"Assign({self.left}, {self.right}, {self.public})"
 
 class Reassign(AST):
     def __init__(self, left, op, right) -> None:
@@ -94,12 +123,54 @@ class Var(AST):
     def __repr__(self) -> str:
         return f"Var({self.token})"
 
+class Call(AST):
+    def __init__(self, token, parameters) -> None:
+        self.token = token
+        self.value = token.value
+        self.parameters = parameters
+
+    def __repr__(self) -> str:
+        return f"Call({self.token}, {self.parameters})"
+
+class Parameters(AST):
+    def __init__(self, identifiers: list = None) -> None:
+        if identifiers == None: identifiers = []
+        self.identifiers = identifiers
+    
+    def __repr__(self) -> str:
+        identifiers = []
+        for i in self.identifiers:
+            identifiers.append(repr(i))
+        return f"Parameters({', '.join(identifiers)})"
+
+class Tuple(Value):
+    def __init__(self, values: list = None) -> None:
+        if values == None: values = []
+        self.values = values
+    
+    def __repr__(self) -> str:
+        values = []
+        for s in self.values:
+            values.append(repr(s))
+        return f"Tuple({', '.join(values)})"
+
+class Function(Value):
+    def __init__(self, parameters, scope) -> None:
+        self.parameters = parameters
+        self.scope = scope
+
+    def call(self):
+        return self.parameters, self.scope
+    
+    def __repr__(self) -> str:
+        return f"Function({self.scope})"
+
 class String(Value):
     def __init__(self, token) -> None:
         self.token = token
         self.value = token.value
 
-    def repr(self) -> str:
+    def string(self) -> str:
         return self.value
 
     def bool(self) -> bool:
@@ -117,7 +188,7 @@ class Bool(Value):
         self.token = token
         self.value = token.value
 
-    def repr(self) -> str:
+    def string(self) -> str:
         if self.value: return "true"
         return "false"
 
@@ -132,7 +203,7 @@ class Num(Value):
         self.token = token
         self.value = token.value
     
-    def repr(self) -> str:
+    def string(self) -> str:
         if self.value.is_integer(): return str(int(self.value))
         return str(self.value)
     
@@ -183,7 +254,7 @@ class Nil(Value):
         self.token = Token("NIL", None, oindex)
         self.value = None
 
-    def repr(self) -> str:
+    def string(self) -> str:
         return "nil"
     
     def bool(self) -> bool:

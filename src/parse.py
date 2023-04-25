@@ -25,7 +25,7 @@ class Parser:
 
         arrows = ' '*(len(read_row) - 1) + '^' * len(str(self.tok.value))
 
-        print(f"\n{colorama.Fore.RED}{underline_char}Parsing Error{colorama.Style.RESET_ALL}\n {colorama.Fore.CYAN}<{filename}>: Line {line}{colorama.Style.RESET_ALL}\n{full_row}\n{colorama.Fore.YELLOW}{arrows}\n{colorama.Style.RESET_ALL}{reason}\n")
+        print(f"\n{colorama.Fore.RED}{underline_char}Parsing Error{colorama.Style.RESET_ALL}\n {colorama.Fore.CYAN}<{filename}>: Line {line} (index: {self.tok.oindex}){colorama.Style.RESET_ALL}\n{full_row}\n{colorama.Fore.YELLOW}{arrows}\n{colorama.Style.RESET_ALL}{reason}\n")
         exit()
 
     def next(self, *match: str):
@@ -52,6 +52,8 @@ class Parser:
         elif token.type in ("TRUE", "FALSE"):
             self.next()
             node = Bool(token)
+        elif token.type == "ID":
+            node = self.variable()
         elif token.type == "NIL":
             self.next()
             node = Nil(token.oindex)
@@ -63,10 +65,20 @@ class Parser:
             node = String(token)
         elif token.type == "LBRACKET":
             self.next()
-            node = self.bool_expr()
+            if self.tok.type == "RBRACKET":
+                return Nil(self.tok.oindex)
+            else:
+                node = self.bool_expr()
+                self.next()
+        elif token.type == "RCURLY":
             self.next()
+            node = self.scope()
         else:
             node = self.variable()
+
+        if self.tok.type == "LBRACKET":
+            parameters = self.make_tuple()
+            return Call(node, parameters)
         return node
 
     def base(self):
@@ -135,15 +147,39 @@ class Parser:
         
         return node
     
+    def make_tuple(self, identifiers: bool = False):
+
+        if self.tok.type == "LBRACKET":
+            self.next()
+            nodes = self.value_list(identifiers)
+            if self.tok.type == "RBRACKET":
+                if not identifiers:
+                    root = Tuple()
+                    for node in nodes:
+                        root.values.append(node)
+                else:
+                    root = Parameters()
+                    for node in nodes:
+                        root.identifiers.append(node)
+
+                self.next()
+                return root
+            else:
+                self.error("Expected )")
+        else:
+            self.error("Expected (")
+    
     def variable(self):
-        node = Var(self.tok)
+        token = self.tok
         self.next()
-        return node
+        return Var(token)
 
     def reassignment_statement(self):
-        left = self.variable()
+        left = self.bool_expr()
         token = self.tok
         if token.type == "EQUALS":
+            if type(left) != Var:
+                self.error("Cannot asign to non-variable type")
             self.next()
             right = self.statement()
             node = Reassign(left, token, right)
@@ -156,20 +192,34 @@ class Parser:
             node = left
         return node
 
-    def assignment_statement(self):
-        type = self.tok
+    def assignment_statement(self, public = False):
         self.next("ID")
         left = self.variable()
-        token = self.tok
         self.next()
         right = self.statement()
-        node = Assign(left, token, right, type.type)
+        node = Assign(left, right, public)
         return node
+    
+    def func_statement(self, public = False):
+        self.next("ID")
+        left = self.tok
+        self.next("LBRACKET")
+        parameters = self.make_tuple(True)
+        right = self.scope()
+        node = Assign(left, Function(parameters, right), public)
+        return node
+        
+    def public_statement(self):
+        self.next('FUNCTION', 'LET')
+        if self.tok.type == "FUNCTION":
+            return self.func_statement(True)
+        elif self.tok.type == "LET":
+            return self.assignment_statement(True)
 
     def if_statement(self):
         self.next()
         condition = self.bool_expr()
-        result = self.scope()
+        result = self.scope(True)
         return If(condition, result)
 
     def print_statement(self):
@@ -185,8 +235,12 @@ class Parser:
     def statement(self):
         if self.tok.type == "LCURLY":
             node = self.scope()
-        elif self.tok.type in ("PUB", "LET"):
+        elif self.tok.type == "LET":
             node = self.assignment_statement()
+        elif self.tok.type == "FUNCTION":
+            node = self.func_statement()
+        elif self.tok.type == "PUB":
+            node = self.public_statement()
         elif self.tok.type == "ID":
             node = self.reassignment_statement()
         elif self.tok.type == "RETURN":
@@ -201,11 +255,47 @@ class Parser:
             node = self.bool_expr()
         return node
 
-    def statement_list(self):
+    def value_list(self, identifiers = False):
 
-        node = self.statement()
+        if self.tok.type in ("SEMI", "RBRACKET", "RCURLY"):
+            return []
+        elif identifiers:
+            if self.tok.type == "ID":
+                node = self.tok
+                self.next()
+            else:
+                self.error("Expected Identifier")
+        else:
+            node = self.bool_expr()
 
         results = [node]
+
+        while self.tok.type == "COMMA":
+            self.next()
+            if self.tok.type in ("SEMI", "RBRACKET", "RCURLY"):
+                break
+
+            if identifiers:
+                if self.tok.type == "ID":
+                    node = self.tok
+                    self.next()
+                else:
+                    self.error("Expected Identifier")
+            else:
+                node = self.bool_expr()
+
+            results.append(node)
+            if self.tok.type in ("SEMI", "RBRACKET", "RCURLY"):
+                break
+
+        return results
+
+    def statement_list(self):
+        if self.tok.type == "RCURLY":
+            return []
+
+        results = [self.statement()]
+
         if self.tok.type == "RCURLY":
             results[-1] = Return(results[-1])
         elif self.tok.type == "SEMI":
@@ -213,25 +303,32 @@ class Parser:
                 self.next()
                 if self.tok.type == "RCURLY":
                     break
-                results.append(self.statement())
+
+                node = self.statement()
+                results.append(node)
                 if self.tok.type == "RCURLY":
                     results[-1] = Return(results[-1])
                     break
 
-        if self.tok.type == "ID":
-            self.error("Expected ;")
-        
         return results
 
-    def scope(self):
+    def scope(self, shares: bool = False):
+        parent = None
+        if len(self.scope_stack) != 0:
+            parent = self.scope_stack[-1]
+
         if self.tok.type == "LCURLY":
             self.next()
+            root = Scope(parent, shares)
+            self.scope_stack.append(root)
+
             nodes = self.statement_list()
             if self.tok.type == "RCURLY":
-                root = Scope()
 
                 for node in nodes:
                     root.statements.append(node)
+
+                self.scope_stack.pop()
 
                 self.next()
                 return root
@@ -239,6 +336,7 @@ class Parser:
                 self.error("Expected }")
         else:
             self.error("Expected {")
+
 
     def program(self):
         node = self.scope()
@@ -250,6 +348,8 @@ class Parser:
         self.filename = filename
         self.pos = -1
         self.next()
+
+        self.scope_stack = []
 
         node = self.program()
         if self.tok.type != "EOF":

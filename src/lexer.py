@@ -28,6 +28,7 @@ OPS = {
     '{': "LCURLY",
     '}': "RCURLY",
     '!': "BANG",
+    ',': "COMMA",
 }
 EQ_OPS = '!=<>'
 DO_OPS = '/'

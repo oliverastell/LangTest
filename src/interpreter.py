@@ -1,4 +1,5 @@
 from src.parse import Nil, underline_char, colorama, Bool, Token
+from src.parse_tokens import *
 
 ##########################################
 ##                                      ##
@@ -21,32 +22,37 @@ class NodeVisitor(object):
 ##                                      ##
 ##########################################
 
-class VarTable:
-        def __init__(self, scope) -> None:
-            self.table = {}
-            self.scope = scope
+# class VarTable:
+#         def __init__(self, scope) -> None:
+#             self.table = {}
+#             self.scope = scope
         
-        def get(self, interpreter, var):
-            val = self.table.get(var)
-            if val == None:
-                return interpreter.scope_list[0].table.get(var)
-            else: return val
+#         def get(self, interpreter, var):
+#             val = self.table.get(var)
+#             if val == None:
+#                 return interpreter.scope_list[0].table.get(var)
+#             else: return val
 
-        def assign(self, var, value):
-            self.table[var] = value
+#         def assign(self, var, value):
+#             self.table[var] = value
 
-        def reassign(self, interpreter, var, op, value):
-            if self.get(interpreter, var) != None:
-                self.table[var] = self.operate(op, self.table[var], value)
-            else:
-                interpreter.error(f"Invalid Variable: {var}")
+#         def reassign(self, interpreter, var, op, value):
+#             if self.get(interpreter, var) != None:
+#                 self.table[var] = self.operate(op, self.table[var], value)
+#             else:
+#                 interpreter.error(f"Invalid Variable: {var}")
 
 class Interpreter(NodeVisitor):
     def __init__(self, tree) -> None:
         self.tree = tree
 
-    def get_vartable(self):
-        return self.scope_list[-1]
+    def get_scope(self):
+        if len(self.scope_stack) == 0: return None
+        return self.scope_stack[-1]
+
+    def get_global_scope(self):
+        if len(self.scope_stack) == 0: return None
+        return self.scope_stack[0]
 
     def operate(self, op: str, x, y = None):
         if y != None:
@@ -85,6 +91,23 @@ class Interpreter(NodeVisitor):
         print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error{colorama.Style.RESET_ALL}{colorama.Fore.CYAN}{colorama.Style.RESET_ALL}\n{reason}\n")
         exit()
 
+    def visit_Call(self, node):
+        parameters, scope = self.visit(node.token).call()
+
+        variables = {}
+
+        index = 0
+        for p in parameters.identifiers:
+            if index >= len(node.parameters.values):
+                self.error("Not enough parameters entered")
+            value = node.parameters.values[index]
+
+            variables[p.value] = value
+            index += 1
+
+        scope.vars = variables
+        return self.visit(scope)
+
     def visit_BinOp(self, node):
         return self.operate(node.op.type, self.visit(node.left), self.visit(node.right))
 
@@ -92,43 +115,49 @@ class Interpreter(NodeVisitor):
         return self.operate(node.op.type, self.visit(node.expr))
 
     def visit_Scope(self, node):
-        self.scope_list.append(VarTable(node))
+        node.init_vars()
+        self.scope_stack.append(node)
         for statement in node.statements:
             val = Nil()
             if type(statement).__name__ == "Return":
                 val = self.visit(statement.token)
                 break
             self.visit(statement)
-        if len(self.scope_list) > 1:
-            self.scope_list.pop()
+        if len(self.scope_stack) > 1:
+            self.scope_stack.pop()
+            node.vars = None
         else:
-            self.global_scope = self.scope_list[0]
-            del self.scope_list
+            self.global_scope = self.scope_stack[0]
+            del self.scope_stack
         return val
 
     def visit_If(self, node):
         val = self.visit(node.condition)
         if val.bool():
-            self.visit(node.result)
+            return self.visit(node.result)
+        return Nil()
 
     def visit_Print(self, node):
-        print(self.visit(node.token).repr())
+        print(self.visit(node.token).string())
         return Nil()
 
     def visit_Reassign(self, node):
         var_name = node.left.value
         value = self.visit(node.right)
-        op = node.op.type
-        self.get_vartable().reassign(self, op, var_name, value)
+        before = self.get_scope().get_var(var_name)
+        if before != None:
+            self.get_scope().set_var(var_name, self.operate(node.token.type, before, value))
+        else:
+            self.scope_stack[0].assign(var_name, value)
         return value
 
     def visit_Assign(self, node):
         var_name = node.left.value
         value = self.visit(node.right)
-        if node.assignment_type == "LET":
-            self.get_vartable().assign(var_name, value)
-        elif node.assignment_type == "PUB":
-            self.scope_list[0].assign(var_name, value)
+        if not node.public:
+            self.get_scope().set_var(var_name, value)
+        else:
+            self.get_global_scope().assign(var_name, value)
         return value
 
     def visit_Nil(self, _):
@@ -136,11 +165,14 @@ class Interpreter(NodeVisitor):
 
     def visit_Var(self, node):
         var_name = node.value
-        value = self.get_vartable().get(self, var_name)
+        value = self.get_scope().get_var(var_name)
         if value != None:
             return value
         else:
             self.error(f"Invalid Variable: {var_name}")
+
+    def visit_Function(self, node):
+        return node
 
     def visit_String(self, node):
         return node
@@ -156,6 +188,6 @@ class Interpreter(NodeVisitor):
         if tree is None:
             return ''
 
-        self.scope_list = []
+        self.scope_stack = []
         return self.visit(tree)
     
