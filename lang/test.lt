@@ -1,22 +1,10 @@
 
-#let test = {
-#    !fn(x, y) {
-#        print x + " " + y;
-#        return x + " " + y;
-#    }
-#    ("yo", "wassup") + "ok"
-#};
+let x = python('
 
-#print test;
 
-#print test;
 
-#test("Bing", "Chilling") + 1
+');
 
-(fn(x, y) {
-   print x + " " + y;
-})("hi", "hello");
+print("test:", x)
 
-!fn(x, y) {
-    print x + " " + y;
-}("hi", "hello");
+# Prints "test: sup"

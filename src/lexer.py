@@ -29,14 +29,14 @@ OPS = {
     '}': "RCURLY",
     '!': "BANG",
     ',': "COMMA",
+    '.': "DOT",
 }
 EQ_OPS = '!=<>'
-DO_OPS = '/'
+DO_OPS = '/.'
 RESERVED = {
     "true": ("TRUE", True),
     "false": ("FALSE", False),
     "nil": "NIL",
-    "print": "PRINT",
     "let": "LET",
     "pub": "PUB",
     "return": "RETURN",
@@ -45,6 +45,7 @@ RESERVED = {
     "and": "AND",
     "or": "OR",
     "not": "NOT",
+    "error": "ERROR",
 }
 
 underline_char = '\033[1;4m'
@@ -101,11 +102,12 @@ class Tokenizer:
 
             if self.char == '.':
                 periods += 1
-                if periods > 1:
-                    self.error("Invalid number type")
+                if periods == 2:
+                    self.next()
+                    return Token('NUMBER', float(token[0:-1]), oindex), Token('DOTDOT', '..', oindex)
 
             self.next()
-        return Token('NUMBER', float(token), oindex)
+        return Token('NUMBER', float(token), oindex), None
 
     def make_identifier(self):
         token = ''
@@ -149,6 +151,10 @@ class Tokenizer:
                     token += '\n'
                 elif self.char == '\\':
                     token += '\\'
+                elif self.char == '"':
+                    token += '"'
+                elif self.char == "'":
+                    self.char += "'"
                 elif self.char in '0123456789_':
                     num = ''
                     while self.char in '0123456789_':
@@ -173,7 +179,10 @@ class Tokenizer:
 
         while self.char != None:
             if self.char in NUMBER:
-                tokens.append(self.make_number())
+                x, y = self.make_number()
+                tokens.append(x)
+                if y != None:
+                    tokens.append(y)
             elif self.char in IDENTIFIER:
                 tokens.append(self.make_identifier())
             elif self.char in OPS:
@@ -193,4 +202,5 @@ class Tokenizer:
 
 if __name__ == "__main__":
     import libs.longinput
-    print('\n' + str(Tokenizer(libs.longinput.long_input()).tokenize('stdin')))
+    while True:
+        print('\n' + str(Tokenizer(libs.longinput.long_input()).tokenize('stdin')))

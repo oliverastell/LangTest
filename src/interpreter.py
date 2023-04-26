@@ -1,5 +1,5 @@
 from src.parse import Nil, underline_char, colorama, Bool, Token
-from src.parsetokens import *
+from src.parsetokens import Value
 
 ##########################################
 ##                                      ##
@@ -72,26 +72,16 @@ class Interpreter(NodeVisitor):
             else:
                 self.error(f"Invalid operation {op} {type(x).__name__}")
 
-    def error(self, reason, oindex = None):
-        print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error{colorama.Style.RESET_ALL}{colorama.Fore.CYAN}{colorama.Style.RESET_ALL}\n{reason}\n")
+    def error(self, reason, oindex: int = 0):
+        print(f"\n{colorama.Fore.RED}{underline_char}Interpreting Error <OI {oindex}>{colorama.Style.RESET_ALL}{colorama.Fore.CYAN}{colorama.Style.RESET_ALL}\n{reason}\n")
         exit()
 
     def visit_Call(self, node):
-        parameters, scope = self.visit(node.left).call()
+        params = []
+        for parameter in node.parameters.values:
+            params.append(self.visit(parameter))
 
-        variables = {}
-
-        index = 0
-        for p in parameters.identifiers:
-            if index >= len(node.parameters.values):
-                self.error("Not enough parameters entered")
-            value = node.parameters.values[index]
-
-            variables[p.value] = value
-            index += 1
-
-        scope.vars = variables
-        return self.visit(scope)
+        return self.visit(self.visit(node.left).call(params))
 
     def visit_BinOp(self, node):
         return self.operate(node.op.type, self.visit(node.left), self.visit(node.right))
@@ -122,18 +112,15 @@ class Interpreter(NodeVisitor):
             return self.visit(node.result)
         return Nil()
 
-    def visit_Print(self, node):
-        print(self.visit(node.token).string())
-        return Nil()
+    def visit_Error(self, node):
+        self.error(node.token.token.value)
 
     def visit_Reassign(self, node):
         var_name = node.left.value
         value = self.visit(node.right)
         before = self.get_scope().get_var(var_name)
-        if before != None:
-            self.get_scope().set_var(var_name, self.operate(node.token.type, before, value))
-        else:
-            self.scope_stack[0].assign(var_name, value)
+        self.get_scope().set_var(var_name, self.operate(node.token.type, before, value))
+
         return value
 
     def visit_Assign(self, node):
@@ -142,7 +129,8 @@ class Interpreter(NodeVisitor):
         if not node.public:
             self.get_scope().set_var(var_name, value)
         else:
-            self.get_global_scope().assign(var_name, value)
+            self.get_scope().set_var(var_name, value)
+            self.get_global_scope().set_var(var_name, value)
         return value
 
     def visit_Nil(self, _):
@@ -155,7 +143,7 @@ class Interpreter(NodeVisitor):
             return value
         else:
             self.error(f"Invalid Variable: {var_name}")
-
+    
     def visit_Function(self, node):
         return node
 

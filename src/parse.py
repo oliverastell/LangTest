@@ -52,7 +52,6 @@ class Parser:
 
     def factor(self):
         token = self.tok
-        print("token:", token)
         if token.type in ("PLUS", "MINUS"):
             self.next()
             node = UnaryOp(token, self.base())
@@ -172,7 +171,7 @@ class Parser:
 
         if self.tok.type == "LBRACKET":
             self.next()
-            nodes = self.value_list(identifiers)
+            nodes = self.value_list(identifiers, "RBRACKET")
             if self.tok.type == "RBRACKET":
                 if not identifiers:
                     root = Tuple()
@@ -256,11 +255,6 @@ class Parser:
         result = self.scope(True)
         return If(condition, result)
 
-    def print_statement(self):
-        self.next()
-        node = self.statement()
-        return Print(node)
-
     def return_statement(self):
         self.next()
         node = self.statement()
@@ -282,8 +276,6 @@ class Parser:
             node = self.reassignment_statement()
         elif self.tok.type == "RETURN":
             node = self.return_statement()
-        elif self.tok.type == "PRINT":
-            node = self.print_statement()
         elif self.tok.type == "RCURLY":
             node = self.empty(self.tok.oindex + 1)
         elif self.tok.type == "IF":
@@ -292,9 +284,9 @@ class Parser:
             node = self.bool_expr()
         return node
 
-    def value_list(self, identifiers = False):
+    def value_list(self, identifiers = False, *closing):
 
-        if self.tok.type in ("SEMI", "RBRACKET", "RCURLY"):
+        if self.tok.type in closing:
             return []
         elif identifiers:
             if self.tok.type == "ID":
@@ -309,7 +301,7 @@ class Parser:
 
         while self.tok.type == "COMMA":
             self.next()
-            if self.tok.type in ("SEMI", "RBRACKET", "RCURLY"):
+            if self.tok.type in closing:
                 break
 
             if identifiers:
@@ -322,7 +314,7 @@ class Parser:
                 node = self.bool_expr()
 
             results.append(node)
-            if self.tok.type in ("SEMI", "RBRACKET", "RCURLY"):
+            if self.tok.type in closing:
                 break
 
         return results

@@ -1,4 +1,4 @@
-import colorama
+import colorama, src.builtin
 import src.libs.longinput as longinput
 from src.lexer import Tokenizer
 from src.parse import Parser

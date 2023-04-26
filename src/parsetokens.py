@@ -1,5 +1,8 @@
 from copy import deepcopy
 from src.lexer import Token
+from types import FunctionType
+
+default_vars = {}
 
 class AST:
     ...
@@ -76,7 +79,7 @@ class Scope(AST):
                 else:
                     self.vars = deepcopy(self.parent.vars)
             else:
-                self.vars = {}
+                self.vars = deepcopy(default_vars)
 
 class If(AST):
     def __init__(self, condition, result) -> None:
@@ -86,7 +89,7 @@ class If(AST):
     def __repr__(self) -> str:
         return f"If({self.condition}, {self.result})"
 
-class Print(AST):
+class Error(AST):
     def __init__(self, token) -> None:
         self.token = token
     
@@ -138,7 +141,7 @@ class Parameters(AST):
     def __init__(self, identifiers: list = None) -> None:
         if identifiers == None: identifiers = []
         self.identifiers = identifiers
-    
+
     def __repr__(self) -> str:
         identifiers = []
         for i in self.identifiers:
@@ -157,12 +160,35 @@ class Tuple(Value):
         return f"Tuple({', '.join(values)})"
 
 class Function(Value):
-    def __init__(self, parameters, scope) -> None:
-        self.parameters = parameters
-        self.scope = scope
+    def __init__(self, parameters: Parameters | FunctionType, scope: Scope = None) -> None:
+        if type(parameters) == FunctionType:
+            self.scope = parameters
+        else:
+            self.parameters = parameters
+            self.scope = scope
 
-    def call(self):
-        return self.parameters, self.scope
+    def call(self, params):
+        if type(self.scope) == FunctionType:
+            return_value = self.scope(*params)
+            if return_value == None:
+                return Nil(0)
+            return return_value
+        else:
+            parameters, scope = self.parameters, self.scope
+
+            variables = {}
+
+            index = 0
+            for p in parameters.identifiers:
+                if index >= len(params.values):
+                    self.error("Not enough parameters entered")
+                value = params.values[index]
+
+                variables[p.value] = value
+                index += 1
+
+            scope.vars = variables
+            return scope
     
     def __repr__(self) -> str:
         return f"Function({self.scope})"
